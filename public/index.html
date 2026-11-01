@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resiliente Chat - Chat Global</title>
+  <meta name="description" content="Chat web resiliente y de alcance global">
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="chat-container">
+    <header class="chat-header">
+      <div class="header-content">
+        <div class="status-indicator">
+          <span class="status-dot"></span>
+          <span id="connection-status">Conectando...</span>
+        </div>
+        <h1>Resiliente Chat</h1>
+        <div class="user-count">
+          👥 <span id="user-count">0</span> usuarios
+        </div>
+      </div>
+    </header>
+
+    <div class="chat-main">
+      <div class="messages-container" id="messages-container">
+        <div class="messages-list" id="messages-list"></div>
+      </div>
+
+      <div class="chat-input-area">
+        <div class="input-wrapper">
+          <input type="text" id="message-input" placeholder="Escribe un mensaje..." maxlength="500">
+          <button id="send-btn" class="send-btn">Enviar</button>
+        </div>
+        <div class="user-controls">
+          <input type="text" id="username-input" placeholder="Tu nombre" maxlength="30">
+          <button id="set-username-btn">Cambiar nombre</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
