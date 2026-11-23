@@ -2,45 +2,80 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Resiliente Chat - Chat Global</title>
-  <meta name="description" content="Chat web resiliente y de alcance global">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="light dark">
+  <title>Resiliente Chat</title>
+  <meta name="description" content="Chat privado con cifrado de extremo a extremo. Los mensajes se borran solos y el servidor no guarda nada.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%232747D6' stroke-width='4' stroke-dasharray='56 20'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="chat-container">
-    <header class="chat-header">
-      <div class="header-content">
-        <div class="status-indicator">
-          <span class="status-dot"></span>
-          <span id="connection-status">Conectando...</span>
-        </div>
-        <h1>Resiliente Chat</h1>
-        <div class="user-count">
-          👥 <span id="user-count">0</span> usuarios
-        </div>
+  <!-- Pantalla de inicio -->
+  <main id="landing" class="landing" hidden>
+    <div class="landing-inner">
+      <h1 class="brand">Resiliente</h1>
+      <p class="lede">Una sala de chat privada que no deja rastro. Crea una, comparte el enlace y habla. Los mensajes se borran solos.</p>
+      <button id="create-room" class="btn btn-primary btn-large" type="button">Crear sala privada</button>
+      <ul class="facts">
+        <li><strong>Cifrado en tu navegador.</strong> La clave va en el enlace y nunca llega al servidor.</li>
+        <li><strong>Se borran solos.</strong> Cada mensaje desaparece cuando se acaba su tiempo.</li>
+        <li><strong>Sin historial.</strong> El servidor no guarda mensajes; la sala deja de existir cuando sale la última persona.</li>
+      </ul>
+      <p id="landing-error" class="landing-error" role="alert" hidden></p>
+    </div>
+  </main>
+
+  <!-- Sala -->
+  <div id="room" class="room" hidden>
+    <header class="room-header">
+      <span class="brand brand-small">Resiliente</span>
+      <span class="presence" id="presence" aria-live="polite">
+        <span class="presence-dot" id="presence-dot" aria-hidden="true"></span>
+        <span id="presence-text">Conectando…</span>
+      </span>
+      <div class="room-actions">
+        <button id="copy-link" class="btn btn-quiet" type="button">Copiar enlace</button>
+        <button id="leave-room" class="btn btn-quiet btn-danger" type="button">Salir y borrar</button>
       </div>
     </header>
 
-    <div class="chat-main">
-      <div class="messages-container" id="messages-container">
-        <div class="messages-list" id="messages-list"></div>
+    <section class="messages" id="messages" aria-live="polite" aria-label="Mensajes">
+      <div class="empty" id="empty-state">
+        <p class="empty-title">Aún no hay mensajes.</p>
+        <p id="empty-hint">Comparte el enlace con quien quieras invitar. Solo quien lo tenga puede entrar y leer.</p>
       </div>
+      <ol class="message-list" id="message-list"></ol>
+    </section>
 
-      <div class="chat-input-area">
-        <div class="input-wrapper">
-          <input type="text" id="message-input" placeholder="Escribe un mensaje..." maxlength="500">
-          <button id="send-btn" class="send-btn">Enviar</button>
-        </div>
-        <div class="user-controls">
-          <input type="text" id="username-input" placeholder="Tu nombre" maxlength="30">
-          <button id="set-username-btn">Cambiar nombre</button>
-        </div>
+    <form class="composer" id="composer" autocomplete="off">
+      <div class="composer-meta">
+        <label class="field-inline">
+          <span>Tu nombre</span>
+          <input id="name-input" type="text" maxlength="30" spellcheck="false" required>
+        </label>
+        <label class="field-inline">
+          <span>Se borra en</span>
+          <select id="ttl-select">
+            <option value="30">30 segundos</option>
+            <option value="60">1 minuto</option>
+            <option value="300" selected>5 minutos</option>
+            <option value="3600">1 hora</option>
+          </select>
+        </label>
       </div>
-    </div>
+      <div class="composer-row">
+        <label for="message-input" class="visually-hidden">Mensaje</label>
+        <textarea id="message-input" rows="1" maxlength="2000" placeholder="Escribe un mensaje" spellcheck="true"></textarea>
+        <button id="send-btn" class="btn btn-primary" type="submit" disabled>Enviar</button>
+      </div>
+      <p class="composer-status" id="composer-status" role="status"></p>
+    </form>
   </div>
 
-  <script src="js/app.js"></script>
+  <noscript><p class="noscript">Este chat necesita JavaScript para cifrar los mensajes en tu navegador.</p></noscript>
+
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

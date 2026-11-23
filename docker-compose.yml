@@ -1,18 +1,17 @@
-version: '3.8'
-
 services:
   resiliente-chat:
     build: .
     ports:
       - "8080:8080"
     environment:
-      - PORT=8080
-      - HOST=0.0.0.0
-      - CORS_ORIGIN=*
+      PORT: 8080
+      # Ponlo a "true" si hay un proxy HTTPS delante:
+      TRUST_PROXY: "false"
+      # ALLOWED_ORIGINS: https://chat.tu-dominio.com
     restart: unless-stopped
-    networks:
-      - chat-network
-
-networks:
-  chat-network:
-    driver: bridge
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # Sin volúmenes: no hay nada que guardar en disco.
+    logging:
+      driver: "none"
