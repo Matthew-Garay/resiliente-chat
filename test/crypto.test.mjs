@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   randomRoomId, generateKey, exportKey, importKey,
   encryptMessage, decryptMessage, parseInvite, buildInvite,
+  deriveRoomSecret, VERIFICATION_WORDS,
 } from '../public/js/crypto.js';
 
 const ROOM = 'AAAAAAAAAAAAAAAAAAAAAA';
@@ -60,11 +61,56 @@ test('el enlace de invitación lleva sala y clave en el fragmento (#)', () => {
   const key = 'k'.repeat(43);
   const url = buildInvite('https://chat.ejemplo.com/', ROOM, key);
   assert.equal(url, `https://chat.ejemplo.com/#r=${ROOM}&k=${key}`);
-  assert.deepEqual(parseInvite(`#r=${ROOM}&k=${key}`), { room: ROOM, key });
+  assert.deepEqual(parseInvite(`#r=${ROOM}&k=${key}`), { room: ROOM, key, password: false });
 });
 
 test('parseInvite rechaza fragmentos incompletos o inválidos', () => {
   assert.equal(parseInvite(''), null);
   assert.equal(parseInvite('#r=corto&k=abc'), null);
   assert.equal(parseInvite(`#r=${ROOM}`), null);
+});
+
+test('el enlace indica si la sala tiene contraseña (sin incluirla)', () => {
+  const key = 'k'.repeat(43);
+  const url = buildInvite('https://x.com/', ROOM, key, { password: true });
+  assert.equal(url, `https://x.com/#r=${ROOM}&k=${key}&p=1`);
+  assert.deepEqual(parseInvite(`#r=${ROOM}&k=${key}&p=1`), { room: ROOM, key, password: true });
+});
+
+test('sin contraseña, deriveRoomSecret descifra lo cifrado con la clave del enlace', async () => {
+  const raw = await exportKey(await generateKey());
+  const a = await deriveRoomSecret(raw, ROOM);
+  const b = await deriveRoomSecret(raw, ROOM, '');
+  const sealed = await encryptMessage(a.key, ROOM, { t: 'hola' });
+  assert.deepEqual(await decryptMessage(b.key, ROOM, sealed), { t: 'hola' });
+  assert.deepEqual(a.code, b.code);
+});
+
+test('con contraseña, solo la misma contraseña descifra', async () => {
+  const raw = await exportKey(await generateKey());
+  const good = await deriveRoomSecret(raw, ROOM, 'luna llena');
+  const same = await deriveRoomSecret(raw, ROOM, 'luna llena');
+  const wrong = await deriveRoomSecret(raw, ROOM, 'luna nueva');
+  const none = await deriveRoomSecret(raw, ROOM);
+  const sealed = await encryptMessage(good.key, ROOM, { t: 'secreto' });
+  assert.deepEqual(await decryptMessage(same.key, ROOM, sealed), { t: 'secreto' });
+  await assert.rejects(decryptMessage(wrong.key, ROOM, sealed));
+  await assert.rejects(decryptMessage(none.key, ROOM, sealed));
+});
+
+test('el código de verificación son 4 palabras que cambian con la clave o la contraseña', async () => {
+  const raw = await exportKey(await generateKey());
+  const a = await deriveRoomSecret(raw, ROOM, 'x');
+  const b = await deriveRoomSecret(raw, ROOM, 'x');
+  const c = await deriveRoomSecret(raw, ROOM, 'y');
+  const d = await deriveRoomSecret(await exportKey(await generateKey()), ROOM, 'x');
+  assert.equal(a.code.length, 4);
+  assert.ok(a.code.every((w) => VERIFICATION_WORDS.includes(w)));
+  assert.deepEqual(a.code, b.code);
+  assert.notDeepEqual(a.code, c.code);
+  assert.notDeepEqual(a.code, d.code);
+});
+
+test('la lista de palabras tiene 64 palabras distintas', () => {
+  assert.equal(new Set(VERIFICATION_WORDS).size, 64);
 });

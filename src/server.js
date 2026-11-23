@@ -21,26 +21,37 @@ const ROOM_RE = /^[A-Za-z0-9_-]{22}$/;
 const IV_RE = /^[A-Za-z0-9_-]{16}$/;
 const CT_RE = /^[A-Za-z0-9_-]+$/;
 const REF_RE = /^[A-Za-z0-9_-]{1,36}$/;
-// Peor caso: 2000 caracteres de control escapados en JSON (6 bytes cada uno) + nombre,
-// más la etiqueta GCM, en base64url. Unos 16 300 caracteres.
-const MAX_CT_LENGTH = 16_500;
+// Una imagen de hasta 200 KB en base64 dentro del JSON cifrado y de nuevo en base64url
+// ocupa ~360 000 caracteres. El texto (2000 caracteres) cabe de sobra.
+const MAX_CT_LENGTH = 380_000;
 // Tras tantos excesos seguidos del límite anti-spam se corta la conexión.
 const MAX_STRIKES = 30;
 
 const DEFAULTS = {
   maxRoomSize: 50,
   maxRooms: 1000,
-  maxPayload: 20 * 1024,
+  maxPayload: 400 * 1024,
   maxConnectionsPerIp: 20,
   trustProxy: false,
   heartbeatMs: 30_000,
   joinTimeoutMs: 10_000,
   allowedOrigins: [],
   rate: { capacity: 10, refillPerSec: 2 },
+  // Bytes: ráfaga de ~4 imágenes y luego ~1 imagen cada 2 s.
+  byteRate: { capacity: 1_600_000, refillPerSec: 200_000 },
 };
 
 function createChatServer(options = {}) {
-  const opts = { ...DEFAULTS, ...options, rate: { ...DEFAULTS.rate, ...options.rate } };
+  const opts = {
+    ...DEFAULTS,
+    ...options,
+    rate: { ...DEFAULTS.rate, ...options.rate },
+    byteRate: { ...DEFAULTS.byteRate, ...options.byteRate },
+  };
+  if (opts.byteRate.capacity < MAX_CT_LENGTH) {
+    // Un mensaje cuesta tantas fichas como caracteres: con menos capacidad, las imágenes grandes nunca pasarían.
+    throw new Error(`byteRate.capacity debe ser al menos ${MAX_CT_LENGTH}`);
+  }
 
   const app = express();
   app.disable('x-powered-by');
@@ -54,7 +65,8 @@ function createChatServer(options = {}) {
           'default-src': ["'self'"],
           'script-src': ["'self'"],
           'style-src': ["'self'"],
-          'img-src': ["'self'", 'data:'],
+          'img-src': ["'self'", 'data:', 'blob:'],
+          'manifest-src': ["'self'"],
           'connect-src': ["'self'"],
           'font-src': ["'self'"],
           'object-src': ["'none'"],
@@ -156,6 +168,7 @@ function createChatServer(options = {}) {
     const validIv = typeof data.iv === 'string' && IV_RE.test(data.iv);
     const validCt = typeof data.ct === 'string' && data.ct.length <= MAX_CT_LENGTH && CT_RE.test(data.ct);
     if (!validIv || !validCt) return fail(ws, 'bad_message', { ref });
+    if (!ws.byteLimiter.take(data.ct.length)) return fail(ws, 'rate_limited', { ref });
 
     const out = JSON.stringify({ type: 'msg', iv: data.iv, ct: data.ct });
     for (const member of rooms.get(ws.roomId) || []) {
@@ -187,6 +200,7 @@ function createChatServer(options = {}) {
     ws.roomId = null;
     ws.strikes = 0;
     ws.limiter = createRateLimiter(opts.rate);
+    ws.byteLimiter = createRateLimiter(opts.byteRate);
     // Una conexión que no entra en ninguna sala no tiene nada que hacer aquí.
     ws.joinTimer = setTimeout(() => {
       if (!ws.roomId) ws.close(1008, 'join_timeout');

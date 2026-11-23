@@ -13,9 +13,10 @@ function intEnv(name, fallback) {
 
 /**
  * Certificado HTTPS: TLS_CERT/TLS_KEY si están definidas; si no, certs/ (creado con "npm run cert").
- * Sin certificado se sirve HTTP (válido en localhost o detrás de un proxy HTTPS).
+ * Sin certificado (o con TLS=off) se sirve HTTP: válido en localhost o detrás de un proxy HTTPS.
  */
 function loadTls() {
+  if (/^(off|false|0|no)$/i.test(process.env.TLS || '')) return null;
   const certPath = process.env.TLS_CERT || path.join(__dirname, 'certs', 'cert.pem');
   const keyPath = process.env.TLS_KEY || path.join(__dirname, 'certs', 'key.pem');
   if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {

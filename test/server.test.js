@@ -162,14 +162,14 @@ test('rechaza mensajes con formato inválido', async () => {
   assert.equal((await next(ws, (m) => m.type === 'error')).code, 'bad_message');
   send(ws, { type: 'msg', iv: 'corto', ct: CT });
   assert.equal((await next(ws, (m) => m.type === 'error')).code, 'bad_message');
-  send(ws, { type: 'msg', iv: IV, ct: 'x'.repeat(17_000) });
+  send(ws, { type: 'msg', iv: IV, ct: 'x'.repeat(390_000) });
   assert.equal((await next(ws, (m) => m.type === 'error')).code, 'bad_message');
   ws.close();
 });
 
 test('corta la conexión si el mensaje supera el tamaño máximo', async () => {
   const { ws } = await join(ROOM_A);
-  send(ws, { type: 'msg', iv: IV, ct: 'x'.repeat(25_000) });
+  send(ws, { type: 'msg', iv: IV, ct: 'x'.repeat(450_000) });
   assert.equal(await closed(ws), 1009);
 });
 
@@ -255,4 +255,35 @@ test('con trustProxy usa la IP de X-Forwarded-For y acepta X-Forwarded-Host', as
 
 test('rechaza WebSockets abiertos desde otra web', async () => {
   await assert.rejects(openClient(baseUrl, { Origin: 'https://malicioso.example' }), /401|403/);
+});
+
+test('acepta imágenes cifradas grandes (hasta ~380 KB)', async () => {
+  const a1 = await join(ROOM_A);
+  const a2 = await join(ROOM_A);
+  const big = 'x'.repeat(370_000);
+  send(a1.ws, { type: 'msg', iv: IV, ct: big, ref: 'img' });
+  const got = await next(a2.ws, (m) => m.type === 'msg', 3000);
+  assert.equal(got.ct.length, big.length);
+  [a1, a2].forEach(({ ws }) => ws.close());
+});
+
+test('limita también los bytes por segundo (anti-spam de imágenes)', async () => {
+  const small = createChatServer({ heartbeatMs: 60_000, byteRate: { capacity: 1_000_000, refillPerSec: 1 } });
+  await new Promise((resolve) => small.server.listen(0, '127.0.0.1', resolve));
+  const url = `127.0.0.1:${small.server.address().port}`;
+  const ws = await openClient(url);
+  send(ws, { type: 'join', room: ROOM_A });
+  await next(ws, (m) => m.type === 'joined');
+  const big = 'x'.repeat(370_000);
+  for (let i = 0; i < 3; i++) send(ws, { type: 'msg', iv: IV, ct: big, ref: `b${i}` });
+  const replies = [await next(ws, () => true, 3000), await next(ws, () => true, 3000), await next(ws, () => true, 3000)];
+  assert.deepEqual(replies.map((r) => r.type), ['ack', 'ack', 'error']);
+  assert.equal(replies[2].code, 'rate_limited');
+  assert.equal(replies[2].ref, 'b2');
+  ws.close();
+  await small.close();
+});
+
+test('rechaza una configuración de bytes que bloquearía siempre las imágenes', () => {
+  assert.throws(() => createChatServer({ byteRate: { capacity: 100_000, refillPerSec: 1 } }), /byteRate/);
 });
