@@ -96,6 +96,7 @@ const state = {
   lastUndecryptableNotice: 0,
   gateInvite: null,
   ackTimers: new Map(), // id de "hola" -> temporizador de respuesta
+  unread: 0, // mensajes recibidos con la pestaña en segundo plano
 };
 
 /* ------------------------------------------------------------------ */
@@ -265,7 +266,8 @@ async function enterRoom(invite, password, { creator = false } = {}) {
   storeInvite(invite);
 
   showOnly(els.room);
-  document.title = 'Sala privada · Resiliente';
+  state.unread = 0;
+  updateTitle();
   els.codePasswordNote.hidden = !invite.password;
   updateEmptyState();
   startTicker();
@@ -300,7 +302,7 @@ function wipeEverything() {
   els.retryPassword.hidden = true;
   Object.assign(state, {
     room: null, rawKey: null, key: null, code: null, hasPassword: false, verified: false,
-    ws: null, joined: false, peers: 0,
+    ws: null, joined: false, peers: 0, unread: 0,
   });
 }
 
@@ -601,7 +603,7 @@ function nameColor(name) {
   for (const ch of name) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
   const hue = NAME_HUES[hash % NAME_HUES.length];
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-  return dark ? `hsl(${hue} 70% 72%)` : `hsl(${hue} 65% 32%)`;
+  return dark ? `hsl(${hue} 70% 72%)` : `hsl(${hue} 65% 27%)`;
 }
 
 /** Crea el contenido visible (texto y/o imagen). Solo textContent: nunca se interpreta HTML. */
@@ -644,9 +646,15 @@ function render({ name, text, image = null, ttl, own, pending = false, once = fa
   who.className = 'msg-name';
   who.textContent = own ? `${name} (tú)` : name;
   who.style.color = nameColor(name);
+  // La cuenta atrás cambia 4 veces por segundo: se oculta a los lectores de pantalla
+  // y se anuncia una sola vez, en texto fijo, cuándo se borra.
   const timer = document.createElement('span');
   timer.className = 'msg-timer';
-  head.append(who, timer);
+  timer.setAttribute('aria-hidden', 'true');
+  const spoken = document.createElement('span');
+  spoken.className = 'visually-hidden';
+  spoken.textContent = once && !own ? 'Mensaje de ver una vez.' : `Se borra en ${formatRemaining(ttl * 1000)}.`;
+  head.append(who, timer, spoken);
 
   const body = document.createElement('div');
   body.className = 'msg-body';
@@ -682,6 +690,12 @@ function render({ name, text, image = null, ttl, own, pending = false, once = fa
     const { parts, url } = buildContent({ name, text, image });
     body.append(...parts);
     entry.url = url;
+  }
+
+  if (!own && document.hidden) {
+    // Solo un número en el título: nada del contenido sale de la página.
+    state.unread += 1;
+    updateTitle();
   }
 
   const stick = isNearBottom();
@@ -841,6 +855,12 @@ async function copyLink() {
   }
 }
 
+function updateTitle() {
+  if (!state.room) return;
+  const base = 'Sala privada · Resiliente';
+  document.title = state.unread ? `(${state.unread}) ${base}` : base;
+}
+
 function showCode() {
   if (!state.code) return;
   els.codeWords.textContent = state.code.join(' · ');
@@ -879,8 +899,21 @@ window.addEventListener('hashchange', async () => {
     return;
   }
   if (invite.room === state.room) return;
+  // Otra página podría cambiar el enlace de esta pestaña: nunca se cambia de sala sin preguntar.
+  if (state.room && !window.confirm('¿Salir de esta sala (se borrarán sus mensajes) y entrar en la del enlace nuevo?')) {
+    setStatus('Seguís en esta sala. Se ignoró el enlace nuevo.');
+    return;
+  }
   if (state.room) leaveRoom();
   await openInvite(invite);
+});
+
+// Al volver a la pestaña, el contador de mensajes nuevos se pone a cero.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.unread) {
+    state.unread = 0;
+    updateTitle();
+  }
 });
 
 // Al cerrar la pestaña se cierra la conexión; el resto vive solo en memoria.

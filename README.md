@@ -12,7 +12,9 @@ Chat privado que no deja rastro. Creas una sala, compartes el enlace y habláis.
 - **Ver una vez.** El mensaje llega tapado; al tocarlo se ve 10 segundos y desaparece.
 - **Imágenes cifradas.** Se recomprimen en tu navegador, lo que elimina los metadatos (GPS, modelo de cámara), y se borran igual que los mensajes.
 - **Código de verificación.** Cuatro palabras para comparar en persona o por llamada y confirmar que tenéis la misma sala.
+- **Aviso discreto de mensajes nuevos:** con la pestaña en segundo plano, el título muestra cuántos llegaron, nunca su contenido.
 - **Instalable** en el móvil o el ordenador como una app (PWA).
+- **Accesible:** cumple WCAG 2.2 AA (contraste, teclado, lectores de pantalla) en tema claro y oscuro.
 
 ## Cómo funciona
 
@@ -144,10 +146,15 @@ Límites fijos: textos de hasta 2000 caracteres, imágenes de hasta 200 KB tras 
 ## Tests
 
 ```bash
-npm test
+npm test           # cifrado, servidor y HTTPS
+npm run test:e2e   # navegador real: varias personas usando el chat
 ```
 
-Cubren el cifrado (ida y vuelta, otra clave, otra sala, mensaje alterado, enlaces, contraseña y código de verificación), el servidor (reenvío por sala y confirmación, sin historial, presencia, borrado de salas vacías, validación, tamaños, sala llena, anti-spam por tramas y por bytes, límite por IP, proxy y origen) y HTTPS. Se ejecutan en cada push con GitHub Actions.
+Las pruebas en navegador usan Chrome si está instalado; si no, ejecuta antes `npx playwright-core install chromium`.
+
+Cubren el cifrado (ida y vuelta, otra clave, otra sala, mensaje alterado, enlaces, contraseña y código de verificación), el servidor (reenvío por sala y confirmación, sin historial, presencia, borrado de salas vacías, validación, tamaños, sala llena, anti-spam por tramas y por bytes, límite por IP, proxy y origen) y HTTPS. Las de navegador recorren 22 escenarios con varias personas: entrar, mensajes que caducan, contador en el título, recarga, otra clave, enlaces dañados, anti-spam, salir y borrar, reconexión, contraseña buena y mala, código, ver una vez e imágenes. Todo se ejecuta en cada push con GitHub Actions, junto con una prueba de la imagen Docker.
+
+Historial de versiones en [CHANGELOG.md](CHANGELOG.md).
 
 ## Estructura
 
@@ -164,6 +171,7 @@ public/js/app.js       Lógica del cliente: salas, mensajes, ver una vez y autod
 public/manifest.webmanifest, public/icons/   App instalable (PWA)
 render.yaml            Despliegue en Render
 test/                  Tests con node:test
+e2e/                   Pruebas en navegador real (Playwright)
 ```
 
 ## Licencia

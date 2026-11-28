@@ -287,3 +287,20 @@ test('limita también los bytes por segundo (anti-spam de imágenes)', async () 
 test('rechaza una configuración de bytes que bloquearía siempre las imágenes', () => {
   assert.throws(() => createChatServer({ byteRate: { capacity: 100_000, refillPerSec: 1 } }), /byteRate/);
 });
+
+test('close() termina aunque haya conexiones HTTP a medias', async () => {
+  const net = require('net');
+  const s = createChatServer({ heartbeatMs: 60_000 });
+  await new Promise((resolve) => s.server.listen(0, '127.0.0.1', resolve));
+  // Un cliente que empieza una petición y no la termina (como un navegador o una red lenta).
+  const sock = net.connect(s.server.address().port, '127.0.0.1');
+  await new Promise((resolve) => sock.on('connect', resolve));
+  sock.write('GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n');
+  sock.on('error', () => {});
+  await new Promise((r) => setTimeout(r, 50));
+  await Promise.race([
+    s.close(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('close() colgado')), 3000)),
+  ]);
+  sock.destroy();
+});

@@ -1,6 +1,6 @@
 {
   "name": "resiliente-chat",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Chat efímero con cifrado de extremo a extremo: salas privadas por enlace y mensajes que se autodestruyen.",
   "main": "server.js",
   "scripts": {
@@ -8,7 +8,8 @@
     "dev": "node --env-file-if-exists=.env --watch server.js",
     "cert": "node scripts/generar-certificado.js",
     "publicar": "node scripts/publicar.js",
-    "test": "node --test"
+    "test": "node --test test/*.test.js test/*.test.mjs",
+    "test:e2e": "node --test --test-concurrency=1 e2e/*.e2e.js"
   },
   "engines": {
     "node": ">=22.9"
@@ -28,6 +29,7 @@
   "author": "Matthew Garay",
   "license": "MIT",
   "devDependencies": {
+    "playwright-core": "^1.49.1",
     "selfsigned": "^2.4.1"
   }
 }

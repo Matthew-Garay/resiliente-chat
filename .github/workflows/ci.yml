@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   test:
+    name: Tests (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,3 +24,42 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm audit --omit=dev --audit-level=high
+
+  e2e:
+    name: Navegador real (Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run test:e2e
+
+  docker:
+    name: Imagen Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t resiliente-chat .
+      - name: Arrancar el contenedor como en docker-compose (solo lectura, sin root)
+        run: docker run -d --name chat --read-only --cap-drop ALL --security-opt no-new-privileges:true -p 8080:8080 resiliente-chat
+      - name: Comprobar que responde y que el healthcheck pasa
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/ | grep -q 'Resiliente'
+          for i in $(seq 1 45); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' chat)
+            echo "salud: $status"
+            [ "$status" = healthy ] && exit 0
+            sleep 2
+          done
+          docker logs chat
+          exit 1
+      - name: El contenedor no ejecuta como root
+        run: test "$(docker exec chat id -u)" != "0"

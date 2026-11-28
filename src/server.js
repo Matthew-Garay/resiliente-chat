@@ -251,7 +251,11 @@ function createChatServer(options = {}) {
     for (const ws of wss.clients) ws.terminate();
     rooms.clear();
     await new Promise((resolve) => wss.close(resolve));
-    await new Promise((resolve) => server.close(resolve));
+    const closed = new Promise((resolve) => server.close(resolve));
+    // Sin esto, close() espera a que cada navegador suelte sus conexiones HTTP
+    // (keep-alive o peticiones a medias), lo que puede no ocurrir nunca.
+    server.closeAllConnections();
+    await closed;
   }
 
   return { app, server, wss, close, roomCount: () => rooms.size };
